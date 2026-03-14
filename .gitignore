@@ -1,0 +1,4 @@
+.vscode/*
+.devcontainer/*
+obj/*
+wm-server

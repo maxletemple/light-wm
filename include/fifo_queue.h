@@ -8,7 +8,11 @@
 
 template<typename T>
 class FifoQueue {
-public:
+    private:
+        std::mutex mutex_;
+        std::queue<T> queue_;
+    
+    public:
     FifoQueue() = default;
 
     void push(T value) {
@@ -31,8 +35,4 @@ public:
         mutex_.unlock();
         return ret;
     }
-
-private:
-    std::mutex mutex_;
-    std::queue<T> queue_;
 };

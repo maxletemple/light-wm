@@ -21,4 +21,5 @@ class Window {
         int getPosY()   const { return posY; }
         int getWidth()  const { return width; }
         int getHeight() const { return height; }
+        void transform(int newPosX, int newPosY, int newWidth, int newHeight);
 };

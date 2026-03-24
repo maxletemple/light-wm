@@ -16,6 +16,16 @@ const std::vector<uint8_t>& Window::getPixels()
 void Window::clear()
 {
     for (int i = 0; i < width * height; i++) {
-        pixels[i] = 255;
+        pixels[i] = backgroundColor;
     }
+}
+
+void Window::transform(int newPosX, int newPosY, int newWidth, int newHeight)
+{
+    posX = newPosX;
+    posY = newPosY;
+    width = newWidth;
+    height = newHeight;
+    pixels.assign(width * height, backgroundColor);
+    needRefresh = true;
 }

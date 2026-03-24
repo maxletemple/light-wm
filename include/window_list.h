@@ -13,6 +13,7 @@ class WindowList {
         ~WindowList();
         void add(Window* win);
         void remove(int index);
+        void move(int from, int to);
         Window* getWindow(int index);
         int size();
 };

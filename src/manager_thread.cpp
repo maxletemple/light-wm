@@ -6,6 +6,8 @@
 #include <cstring>
 #include "window_protocol.h"
 #include "window_list.h"
+#include "display_object.h"
+#include "text_object.h"
 
 void print_bytes(const std::vector<uint8_t> &data)
 {
@@ -91,6 +93,56 @@ void ManagerThread::run()
                 }
                 window_list_.move(cmd.winIndex, cmd.order);
                 std::cout << "Window " << cmd.winIndex << " moved to order " << cmd.order << std::endl;
+                break;
+            }
+            case CMD_SET_OBJECT: {
+                if (packet.data.size() < sizeof(ObjSet)) {
+                    std::cerr << "CMD_SET_OBJECT: payload too small" << std::endl;
+                    break;
+                }
+                ObjSet cmd;
+                std::memcpy(&cmd, packet.data.data(), sizeof(ObjSet));
+                if (cmd.winIndex >= window_list_.size()) {
+                    std::cerr << "CMD_SET_OBJECT: winIndex out of range" << std::endl;
+                    break;
+                }
+                const uint8_t* payload = packet.data.data() + sizeof(ObjSet);
+                const size_t payloadLen = packet.data.size() - sizeof(ObjSet);
+
+                if (packet.header.data_type == DTYPE_TEXT) {
+                    if (payloadLen < sizeof(TextData)) {
+                        std::cerr << "CMD_SET_OBJECT: TextData payload too small" << std::endl;
+                        break;
+                    }
+                    TextData td;
+                    std::memcpy(&td, payload, sizeof(TextData));
+                    const char* str = reinterpret_cast<const char*>(payload + sizeof(TextData));
+                    const size_t maxLen = payloadLen - sizeof(TextData);
+                    std::string text(str, strnlen(str, maxLen));
+                    auto* obj = new TextObject(cmd.x, cmd.y, cmd.width, cmd.height,
+                                               td.fontSize, text);
+                    window_list_.getWindow(cmd.winIndex)->setObject(cmd.objIndex, obj);
+                    std::cout << "Object " << cmd.objIndex << " (text) set on window "
+                              << cmd.winIndex << std::endl;
+                } else {
+                    std::cout << "CMD_SET_OBJECT: data_type=" << packet.header.data_type
+                              << " not yet implemented" << std::endl;
+                }
+                break;
+            }
+            case CMD_RM_OBJECT: {
+                if (packet.data.size() < sizeof(ObjRemove)) {
+                    std::cerr << "CMD_RM_OBJECT: payload too small" << std::endl;
+                    break;
+                }
+                ObjRemove cmd;
+                std::memcpy(&cmd, packet.data.data(), sizeof(ObjRemove));
+                if (cmd.winIndex >= window_list_.size()) {
+                    std::cerr << "CMD_RM_OBJECT: winIndex out of range" << std::endl;
+                    break;
+                }
+                window_list_.getWindow(cmd.winIndex)->removeObject(cmd.objIndex);
+                std::cout << "Object " << cmd.objIndex << " removed from window " << cmd.winIndex << std::endl;
                 break;
             }
             default:

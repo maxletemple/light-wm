@@ -5,11 +5,10 @@
 
 class Window {
     private:
-        std::vector<DisplayObject> objects;
+        std::vector<DisplayObject*> objects;
         uint8_t backgroundColor;
         int posX, posY;
         int width, height;
-        bool needRefresh;
         std::vector<uint8_t> pixels;
 
     public:
@@ -22,4 +21,7 @@ class Window {
         int getWidth()  const { return width; }
         int getHeight() const { return height; }
         void transform(int newPosX, int newPosY, int newWidth, int newHeight);
+        void addObject(DisplayObject* obj);
+        void setObject(int index, DisplayObject* obj);
+        void removeObject(int index);
 };

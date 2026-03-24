@@ -42,4 +42,21 @@ struct WinOrder {
     uint16_t order;
 };
 
+struct ObjSet {
+    uint16_t winIndex;
+    uint16_t objIndex;
+    uint16_t x, y;
+    uint16_t width, height;
+};
+
+struct ObjRemove {
+    uint16_t winIndex;
+    uint16_t objIndex;
+};
+
+struct TextData {
+    uint16_t fontSize;
+    // suivi d'une chaîne ASCII null-terminée
+};
+
 #pragma pack(pop)

@@ -7,19 +7,27 @@ PORT = 1710
 # RawPacketHeader: uint32_t size, uint8_t command, uint16_t flags, uint8_t data_type
 HEADER_FORMAT = "<IBHB"  # little-endian, 4+1+2+1 = 8 octets
 
-CMD_PING         = 0x0
-CMD_WIN_CREATE   = 0x1
-CMD_WIN_DESTROY  = 0x2
+CMD_PING          = 0x0
+CMD_WIN_CREATE    = 0x1
+CMD_WIN_DESTROY   = 0x2
 CMD_WIN_TRANSFORM = 0x3
-CMD_WIN_ORDER    = 0x4
+CMD_WIN_ORDER     = 0x4
+CMD_SET_OBJECT    = 0x5
+CMD_RM_OBJECT     = 0x6
+
+DTYPE_TEXT    = 0x0
+DTYPE_PICTURE = 0x1
+DTYPE_VIDEO   = 0x2
 
 MENU = """
 --- Commandes disponibles ---
   0  PING
-  1  WIN_CREATE   (posX, posY, width, height, backgroundColor)
-  2  WIN_DESTROY  (winIndex)
+  1  WIN_CREATE    (posX, posY, width, height, backgroundColor)
+  2  WIN_DESTROY   (winIndex)
   3  WIN_TRANSFORM (winIndex, posX, posY, width, height)
-  4  WIN_ORDER    (winIndex, order)
+  4  WIN_ORDER     (winIndex, order)
+  5  SET_TEXT      (winIndex, objIndex, x, y, width, height, fontSize, texte)
+  6  RM_OBJECT     (winIndex, objIndex)
   q  Quitter
 -----------------------------"""
 
@@ -47,6 +55,20 @@ def make_win_transform(winIndex, posX, posY, width, height):
 def make_win_order(winIndex, order):
     data = struct.pack("<HH", winIndex, order)
     return make_packet(CMD_WIN_ORDER, data)
+
+
+def make_set_text(winIndex, objIndex, x, y, width, height, fontSize, text):
+    # ObjSet + TextData + chaîne null-terminée
+    obj_set  = struct.pack("<HHHHHH", winIndex, objIndex, x, y, width, height)
+    text_hdr = struct.pack("<H", fontSize)
+    text_bytes = text.encode("ascii") + b"\x00"
+    data = obj_set + text_hdr + text_bytes
+    return make_packet(CMD_SET_OBJECT, data, data_type=DTYPE_TEXT)
+
+
+def make_rm_object(winIndex, objIndex):
+    data = struct.pack("<HH", winIndex, objIndex)
+    return make_packet(CMD_RM_OBJECT, data)
 
 
 def prompt_int(label, default=None):
@@ -103,6 +125,24 @@ def interactive_loop(sock):
             order = prompt_int("order")
             sock.sendall(make_win_order(idx, order))
             print(f"→ WIN_ORDER envoyé (index={idx} → position {order})")
+
+        elif choix == "5":
+            winIdx  = prompt_int("winIndex")
+            objIdx  = prompt_int("objIndex", 0)
+            x       = prompt_int("x", 0)
+            y       = prompt_int("y", 0)
+            width   = prompt_int("width", 100)
+            height  = prompt_int("height", 20)
+            fontSize = prompt_int("fontSize", 8)
+            text    = input("  texte: ")
+            sock.sendall(make_set_text(winIdx, objIdx, x, y, width, height, fontSize, text))
+            print(f"→ SET_TEXT envoyé (win={winIdx} obj={objIdx} \"{text}\" fontSize={fontSize})")
+
+        elif choix == "6":
+            winIdx = prompt_int("winIndex")
+            objIdx = prompt_int("objIndex")
+            sock.sendall(make_rm_object(winIdx, objIdx))
+            print(f"→ RM_OBJECT envoyé (win={winIdx} obj={objIdx})")
 
         else:
             print("Commande inconnue.")

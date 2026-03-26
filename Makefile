@@ -2,7 +2,7 @@ PI_HOST := minitel
 PI_DIR := ~
 
 CXX      = armv6-unknown-linux-gnueabihf-g++
-CXXFLAGS = -std=c++20 -Wall -Wextra -pthread -I include -march=armv6 -mcpu=arm1176jzf-s -mfpu=vfp -mfloat-abi=hard  -marm
+CXXFLAGS = -std=c++20 -Wall -Wextra -pthread -I include -march=armv6 -mcpu=arm1176jzf-s -mfpu=vfp -mfloat-abi=hard  -marm -g
 LDFLAGS  = -pthread
 
 TARGET  = wm-server

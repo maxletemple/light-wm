@@ -1,5 +1,6 @@
 import socket
 import struct
+import os
 
 HOST = "minitel"
 PORT = 1710
@@ -19,6 +20,9 @@ DTYPE_TEXT    = 0x0
 DTYPE_PICTURE = 0x1
 DTYPE_VIDEO   = 0x2
 
+PFMT_JPEG = 0x0
+PFMT_PNG  = 0x1
+
 MENU = """
 --- Commandes disponibles ---
   0  PING
@@ -28,6 +32,7 @@ MENU = """
   4  WIN_ORDER     (winIndex, order)
   5  SET_TEXT      (winIndex, objIndex, x, y, width, height, fontSize, texte)
   6  RM_OBJECT     (winIndex, objIndex)
+  7  SET_PICTURE   (winIndex, objIndex, x, y, width, height, chemin)
   q  Quitter
 -----------------------------"""
 
@@ -69,6 +74,17 @@ def make_set_text(winIndex, objIndex, x, y, width, height, fontSize, text):
 def make_rm_object(winIndex, objIndex):
     data = struct.pack("<HH", winIndex, objIndex)
     return make_packet(CMD_RM_OBJECT, data)
+
+
+def make_set_picture(winIdx, objIdx, x, y, width, height, path):
+    with open(path, "rb") as f:
+        image_bytes = f.read()
+    ext = os.path.splitext(path)[1].lower()
+    fmt = PFMT_JPEG if ext in (".jpg", ".jpeg") else PFMT_PNG
+    obj_set     = struct.pack("<HHHHHH", winIdx, objIdx, x, y, width, height)
+    picture_hdr = struct.pack("<B", fmt)
+    data = obj_set + picture_hdr + image_bytes
+    return make_packet(CMD_SET_OBJECT, data, data_type=DTYPE_PICTURE)
 
 
 def prompt_int(label, default=None):
@@ -143,6 +159,20 @@ def interactive_loop(sock):
             objIdx = prompt_int("objIndex")
             sock.sendall(make_rm_object(winIdx, objIdx))
             print(f"→ RM_OBJECT envoyé (win={winIdx} obj={objIdx})")
+
+        elif choix == "7":
+            winIdx  = prompt_int("winIndex")
+            objIdx  = prompt_int("objIndex", 0)
+            x       = prompt_int("x", 0)
+            y       = prompt_int("y", 0)
+            width   = prompt_int("width", 100)
+            height  = prompt_int("height", 100)
+            path    = input("  chemin du fichier (jpg/png): ").strip()
+            try:
+                sock.sendall(make_set_picture(winIdx, objIdx, x, y, width, height, path))
+                print(f"→ SET_PICTURE envoyé (win={winIdx} obj={objIdx} \"{path}\")")
+            except FileNotFoundError:
+                print(f"  Fichier introuvable : {path}")
 
         else:
             print("Commande inconnue.")

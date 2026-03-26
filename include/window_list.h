@@ -15,5 +15,6 @@ class WindowList {
         void remove(int index);
         void move(int from, int to);
         Window* getWindow(int index);
+        std::vector<Window*> snapshot();
         int size();
 };

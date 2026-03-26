@@ -59,4 +59,9 @@ struct TextData {
     // suivi d'une chaîne ASCII null-terminée
 };
 
+struct PictureData {
+    uint8_t format;   // PFMT_JPEG=0, PFMT_PNG=1
+    // suivi des octets bruts de l'image encodée
+};
+
 #pragma pack(pop)

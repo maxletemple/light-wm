@@ -15,6 +15,7 @@ public:
                   const uint8_t* rawData, size_t dataLen);
     virtual ~DisplayObject() = default;
     virtual bool needRefresh() = 0;
+    virtual bool isDirty() const = 0;
     virtual std::vector<uint8_t> getPixels() = 0;
     uint16_t getX()      const { return x; }
     uint16_t getY()      const { return y; }

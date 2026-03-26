@@ -8,6 +8,10 @@
 #include "window_list.h"
 #include "display_object.h"
 #include "text_object.h"
+#include "picture_object.h"
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
 
 void print_bytes(const std::vector<uint8_t> &data)
 {
@@ -30,7 +34,7 @@ void ManagerThread::run()
         if (network_queue_.size() > 0)
         {
             RawPacket packet = network_queue_.pop();
-
+            std::cout << "processing new packet" << std::endl;
             switch (packet.header.command)
             {
             case CMD_PING:
@@ -123,6 +127,77 @@ void ManagerThread::run()
                                                td.fontSize, text);
                     window_list_.getWindow(cmd.winIndex)->setObject(cmd.objIndex, obj);
                     std::cout << "Object " << cmd.objIndex << " (text) set on window "
+                              << cmd.winIndex << std::endl;
+                } else if (packet.header.data_type == DTYPE_PICTURE) {
+                    if (payloadLen < sizeof(PictureData)) {
+                        std::cerr << "CMD_SET_OBJECT: PictureData payload too small" << std::endl;
+                        break;
+                    }
+                    PictureData pd;
+                    std::memcpy(&pd, payload, sizeof(PictureData));
+                    const uint8_t* imgData = payload + sizeof(PictureData);
+                    const size_t   imgLen  = payloadLen - sizeof(PictureData);
+
+                    const char* inputFmt = (pd.format == PFMT_JPEG) ? "mjpeg" : "png_pipe";
+                    const std::string scaleArg =
+                        std::to_string(cmd.width) + ":" + std::to_string(cmd.height);
+
+                    // Pipes : [0]=lecture, [1]=écriture
+                    int pipeIn[2], pipeOut[2];
+                    if (pipe(pipeIn) < 0 || pipe(pipeOut) < 0) {
+                        std::cerr << "CMD_SET_OBJECT: pipe() failed" << std::endl;
+                        break;
+                    }
+
+                    pid_t pid = fork();
+                    if (pid < 0) {
+                        std::cerr << "CMD_SET_OBJECT: fork() failed" << std::endl;
+                        break;
+                    }
+
+                    if (pid == 0) {
+                        // Processus fils : ffmpeg
+                        dup2(pipeIn[0],  STDIN_FILENO);
+                        dup2(pipeOut[1], STDOUT_FILENO);
+                        close(pipeIn[1]); close(pipeOut[0]);
+                        close(pipeIn[0]); close(pipeOut[1]);
+                        // Silencer stderr de ffmpeg
+                        int devnull = open("/dev/null", O_WRONLY);
+                        if (devnull >= 0) dup2(devnull, STDERR_FILENO);
+                        execlp("ffmpeg", "ffmpeg",
+                               "-f", inputFmt, "-i", "pipe:0",
+                               "-vf", ("scale=" + scaleArg).c_str(),
+                               "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1",
+                               nullptr);
+                        _exit(1);
+                    }
+
+                    // Processus parent
+                    close(pipeIn[0]); close(pipeOut[1]);
+                    // Écriture des données image sur stdin de ffmpeg
+                    write(pipeIn[1], imgData, imgLen);
+                    close(pipeIn[1]);
+                    // Lecture des pixels décodés
+                    const size_t expected = (size_t)cmd.width * cmd.height;
+                    std::vector<uint8_t> decoded(expected);
+                    size_t total = 0;
+                    while (total < expected) {
+                        ssize_t n = read(pipeOut[0], decoded.data() + total, expected - total);
+                        if (n <= 0) break;
+                        total += n;
+                    }
+                    close(pipeOut[0]);
+                    waitpid(pid, nullptr, 0);
+
+                    if (total < expected) {
+                        std::cerr << "CMD_SET_OBJECT: ffmpeg decoded only " << total
+                                  << "/" << expected << " bytes" << std::endl;
+                        break;
+                    }
+                    auto* obj = new PictureObject(cmd.x, cmd.y, cmd.width, cmd.height,
+                                                  decoded.data(), expected);
+                    window_list_.getWindow(cmd.winIndex)->setObject(cmd.objIndex, obj);
+                    std::cout << "Object " << cmd.objIndex << " (picture) set on window "
                               << cmd.winIndex << std::endl;
                 } else {
                     std::cout << "CMD_SET_OBJECT: data_type=" << packet.header.data_type

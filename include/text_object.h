@@ -12,5 +12,6 @@ public:
     TextObject(uint16_t x, uint16_t y, uint16_t width, uint16_t height,
                uint16_t fontSize, const std::string& text);
     bool needRefresh() override;
+    bool isDirty() const override { return dirty_; }
     std::vector<uint8_t> getPixels() override;
 };

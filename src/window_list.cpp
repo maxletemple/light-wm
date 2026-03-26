@@ -35,6 +35,12 @@ Window* WindowList::getWindow(int index)
     return windows_[index];
 }
 
+std::vector<Window*> WindowList::snapshot()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    return windows_;
+}
+
 int WindowList::size()
 {
     std::lock_guard<std::mutex> lock(mutex_);

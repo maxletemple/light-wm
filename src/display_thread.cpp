@@ -63,54 +63,67 @@ void DisplayThread::run()
     std::vector<uint8_t> back(fb_size_, 0);
     const uint32_t bpp = vinfo_.bits_per_pixel;
 
+    // LUT for 32bpp: grayscale → 0xFFRRGGBB (stored as BGRA in memory)
+    uint32_t lut[256];
+    for (int i = 0; i < 256; ++i)
+        lut[i] = 0xFF000000u | ((uint32_t)i << 16) | ((uint32_t)i << 8) | (uint32_t)i;
+
     while (true) {
         // 6. Wait for vsync; fall back to ~16ms sleep if unsupported
         int dummy = 0;
         if (ioctl(fb_fd_, FBIO_WAITFORVSYNC, &dummy) < 0) {
             if (errno == ENOTTY || errno == EINVAL || errno == ENOSYS)
-                std::this_thread::sleep_for(std::chrono::milliseconds(16));
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
         }
 
-        // 7. Clear back buffer to black
+        // 7. Snapshot window list (single mutex acquisition)
+        const auto windows = window_list_.snapshot();
+
+        // 8. Skip frame if scene is static
+        bool scene_dirty = false;
+        for (Window* w : windows)
+            if (w->isDirty()) { scene_dirty = true; break; }
+        if (!scene_dirty) continue;
+
+        auto frame_start = std::chrono::steady_clock::now();
+
+        // 9. Clear back buffer to black
         std::memset(back.data(), 0, fb_size_);
 
-        // 8. Iterate window list
-        const int win_count = window_list_.size();
-        for (int i = 0; i < win_count; ++i) {
-            Window* w = window_list_.getWindow(i);
-            if (!w) continue;
+        // 10. Composite windows into back buffer
+        const int scr_w = static_cast<int>(vinfo_.xres);
+        const int scr_h = static_cast<int>(vinfo_.yres);
 
+        for (Window* w : windows) {
             const auto& pixels = w->getPixels();
             const int px = w->getPosX(), py = w->getPosY();
             const int pw = w->getWidth(), ph = w->getHeight();
 
-            for (int wy = 0; wy < ph; ++wy) {
+            // Pre-compute clip rectangle
+            const int cx0 = std::max(0, -px), cx1 = std::min(pw, scr_w - px);
+            const int cy0 = std::max(0, -py), cy1 = std::min(ph, scr_h - py);
+            if (cx0 >= cx1 || cy0 >= cy1) continue;
+
+            for (int wy = cy0; wy < cy1; ++wy) {
                 const int sy = py + wy;
-                if (sy < 0 || sy >= static_cast<int>(vinfo_.yres)) continue;
-
-                for (int wx = 0; wx < pw; ++wx) {
-                    const int sx = px + wx;
-                    if (sx < 0 || sx >= static_cast<int>(vinfo_.xres)) continue;
-
-                    const uint8_t v = pixels[wy * pw + wx];
-
-                    if (bpp == 8) {
-                        size_t off = static_cast<size_t>(sy) * finfo_.line_length
-                                   + static_cast<size_t>(sx);
-                        back[off] = v;
-                    } else { // 32
-                        size_t off = static_cast<size_t>(sy) * finfo_.line_length
-                                   + static_cast<size_t>(sx) * 4;
-                        back[off]     = v;    // B
-                        back[off + 1] = v;    // G
-                        back[off + 2] = v;    // R
-                        back[off + 3] = 0xFF; // A
-                    }
+                const uint8_t* src = pixels.data() + wy * pw + cx0;
+                if (bpp == 8) {
+                    std::memcpy(back.data() + sy * finfo_.line_length + (px + cx0),
+                                src, cx1 - cx0);
+                } else { // 32bpp
+                    uint32_t* dst = reinterpret_cast<uint32_t*>(
+                        back.data() + sy * finfo_.line_length) + (px + cx0);
+                    for (int i = 0, n = cx1 - cx0; i < n; ++i)
+                        dst[i] = lut[src[i]];
                 }
             }
         }
 
-        // 9. Flip to framebuffer
+        // 11. Flip to framebuffer
         std::memcpy(fb_ptr_, back.data(), fb_size_);
+
+        auto frame_ms = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - frame_start).count();
+        std::cout << "[Display] frame " << frame_ms << " ms" << std::endl;
     }
 }

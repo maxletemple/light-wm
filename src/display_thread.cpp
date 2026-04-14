@@ -59,9 +59,26 @@ void DisplayThread::run()
         fb_ptr_ = nullptr; cleanup(); return;
     }
 
+
+    // Set up grayscale palette for 8 bpp
+    const uint32_t bpp = vinfo_.bits_per_pixel;
+    if (bpp == 8) {
+        uint16_t red[256], green[256], blue[256];
+        for (int i = 0; i < 256; ++i)
+            red[i] = green[i] = blue[i] = static_cast<uint16_t>((i << 8) | i);
+        struct fb_cmap cmap {};
+        cmap.start = 0;
+        cmap.len   = 256;
+        cmap.red   = red;
+        cmap.green = green;
+        cmap.blue  = blue;
+        cmap.transp = nullptr;
+        if (ioctl(fb_fd_, FBIOPUTCMAP, &cmap) < 0)
+            std::cerr << "[Display] FBIOPUTCMAP: " << strerror(errno) << "\n";
+    }
     // 5. Back buffer (reused each frame)
     std::vector<uint8_t> back(fb_size_, 0);
-    const uint32_t bpp = vinfo_.bits_per_pixel;
+    std::memset(back.data(), 0, fb_size_);
 
     // LUT for 32bpp: grayscale → 0xFFRRGGBB (stored as BGRA in memory)
     uint32_t lut[256];

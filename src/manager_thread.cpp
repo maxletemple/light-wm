@@ -9,9 +9,31 @@
 #include "display_object.h"
 #include "text_object.h"
 #include "picture_object.h"
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/wait.h>
+#include "stb_image.h"
+
+// Decode a JPEG or PNG buffer to 8-bit grayscale, scaled to dstW×dstH.
+// Returns an empty vector on error.
+static std::vector<uint8_t> decodeImageGrayscale(const uint8_t* data, size_t len,
+                                                   uint16_t dstW, uint16_t dstH)
+{
+    int srcW, srcH, channels;
+    uint8_t* pixels = stbi_load_from_memory(data, static_cast<int>(len),
+                                             &srcW, &srcH, &channels, STBI_grey);
+    if (!pixels) {
+        std::cerr << "stb_image error: " << stbi_failure_reason() << std::endl;
+        return {};
+    }
+
+    // Nearest-neighbor scale to target dimensions
+    std::vector<uint8_t> result(static_cast<size_t>(dstW) * dstH);
+    for (size_t dy = 0; dy < dstH; dy++)
+        for (size_t dx = 0; dx < dstW; dx++)
+            result[dy * dstW + dx] =
+                pixels[(dy * srcH / dstH) * srcW + (dx * srcW / dstW)];
+
+    stbi_image_free(pixels);
+    return result;
+}
 
 void print_bytes(const std::vector<uint8_t> &data)
 {
@@ -138,64 +160,15 @@ void ManagerThread::run()
                     const uint8_t* imgData = payload + sizeof(PictureData);
                     const size_t   imgLen  = payloadLen - sizeof(PictureData);
 
-                    const char* inputFmt = (pd.format == PFMT_JPEG) ? "mjpeg" : "png_pipe";
-                    const std::string scaleArg =
-                        std::to_string(cmd.width) + ":" + std::to_string(cmd.height);
-
-                    // Pipes : [0]=lecture, [1]=écriture
-                    int pipeIn[2], pipeOut[2];
-                    if (pipe(pipeIn) < 0 || pipe(pipeOut) < 0) {
-                        std::cerr << "CMD_SET_OBJECT: pipe() failed" << std::endl;
+                    auto decoded = decodeImageGrayscale(imgData, imgLen, cmd.width, cmd.height);
+                    if (decoded.empty()) {
+                        std::cerr << "CMD_SET_OBJECT: image decode failed (fmt="
+                                  << pd.format << ")" << std::endl;
                         break;
                     }
 
-                    pid_t pid = fork();
-                    if (pid < 0) {
-                        std::cerr << "CMD_SET_OBJECT: fork() failed" << std::endl;
-                        break;
-                    }
-
-                    if (pid == 0) {
-                        // Processus fils : ffmpeg
-                        dup2(pipeIn[0],  STDIN_FILENO);
-                        dup2(pipeOut[1], STDOUT_FILENO);
-                        close(pipeIn[1]); close(pipeOut[0]);
-                        close(pipeIn[0]); close(pipeOut[1]);
-                        // Silencer stderr de ffmpeg
-                        int devnull = open("/dev/null", O_WRONLY);
-                        if (devnull >= 0) dup2(devnull, STDERR_FILENO);
-                        execlp("ffmpeg", "ffmpeg",
-                               "-f", inputFmt, "-i", "pipe:0",
-                               "-vf", ("scale=" + scaleArg).c_str(),
-                               "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1",
-                               nullptr);
-                        _exit(1);
-                    }
-
-                    // Processus parent
-                    close(pipeIn[0]); close(pipeOut[1]);
-                    // Écriture des données image sur stdin de ffmpeg
-                    write(pipeIn[1], imgData, imgLen);
-                    close(pipeIn[1]);
-                    // Lecture des pixels décodés
-                    const size_t expected = (size_t)cmd.width * cmd.height;
-                    std::vector<uint8_t> decoded(expected);
-                    size_t total = 0;
-                    while (total < expected) {
-                        ssize_t n = read(pipeOut[0], decoded.data() + total, expected - total);
-                        if (n <= 0) break;
-                        total += n;
-                    }
-                    close(pipeOut[0]);
-                    waitpid(pid, nullptr, 0);
-
-                    if (total < expected) {
-                        std::cerr << "CMD_SET_OBJECT: ffmpeg decoded only " << total
-                                  << "/" << expected << " bytes" << std::endl;
-                        break;
-                    }
                     auto* obj = new PictureObject(cmd.x, cmd.y, cmd.width, cmd.height,
-                                                  decoded.data(), expected);
+                                                  decoded.data(), decoded.size());
                     window_list_.getWindow(cmd.winIndex)->setObject(cmd.objIndex, obj);
                     std::cout << "Object " << cmd.objIndex << " (picture) set on window "
                               << cmd.winIndex << std::endl;

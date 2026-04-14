@@ -60,6 +60,7 @@ void Window::transform(int newPosX, int newPosY, int newWidth, int newHeight)
     width = newWidth;
     height = newHeight;
     pixels.assign(width * height, backgroundColor);
+    dirty_ = true;
 }
 
 void Window::addObject(DisplayObject* obj)

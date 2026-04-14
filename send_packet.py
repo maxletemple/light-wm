@@ -33,6 +33,7 @@ MENU = """
   5  SET_TEXT      (winIndex, objIndex, x, y, width, height, fontSize, texte)
   6  RM_OBJECT     (winIndex, objIndex)
   7  SET_PICTURE   (winIndex, objIndex, x, y, width, height, chemin)
+  t  QUICK TEST    (crée fenêtre 500x500 + mire_ortf.jpeg)
   q  Quitter
 -----------------------------"""
 
@@ -171,6 +172,16 @@ def interactive_loop(sock):
             try:
                 sock.sendall(make_set_picture(winIdx, objIdx, x, y, width, height, path))
                 print(f"→ SET_PICTURE envoyé (win={winIdx} obj={objIdx} \"{path}\")")
+            except FileNotFoundError:
+                print(f"  Fichier introuvable : {path}")
+
+        elif choix == "t":
+            path = "mire_ortf.jpeg"
+            try:
+                sock.sendall(make_win_create(0, 0, 556, 512, 0))
+                print("→ WIN_CREATE envoyé (0,0 500x500 bg=0)")
+                sock.sendall(make_set_picture(0, 0, 0, 0, 556, 512, path))
+                print(f"→ SET_PICTURE envoyé (win=0 obj=0 \"{path}\")")
             except FileNotFoundError:
                 print(f"  Fichier introuvable : {path}")
 

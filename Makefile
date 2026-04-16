@@ -1,9 +1,9 @@
-PI_HOST := minitel
+PI_HOST := mletemple@minitel
 PI_DIR := ~
 
 CXX      = armv6-unknown-linux-gnueabihf-g++
-CXXFLAGS = -std=c++20 -Wall -Wextra -pthread -I include -march=armv6 -mcpu=arm1176jzf-s -mfpu=vfp -mfloat-abi=hard  -marm -g
-LDFLAGS  = -pthread
+CXXFLAGS = --sysroot=$(SYSROOT) -I$(SYSROOT)/usr/include -std=c++20 -Wall -Wextra -pthread -I include -march=armv6 -mcpu=arm1176jzf-s -mfpu=vfp -mfloat-abi=hard  -marm -g
+LDFLAGS  = --sysroot=$(SYSROOT) -Wl,--as-needed -Wl,--allow-shlib-undefined -pthread -lavcodec -lavformat -lavutil -lswscale
 
 TARGET  = wm-server
 SRCDIR  = src
@@ -15,7 +15,7 @@ OBJS = $(patsubst $(SRCDIR)/%.cpp, $(OBJDIR)/%.o, $(SRCS))
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CXX) $(LDFLAGS) -o $@ $^
+	$(CXX) -o $@ $^ $(LDFLAGS)
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
 	@mkdir -p $(OBJDIR)

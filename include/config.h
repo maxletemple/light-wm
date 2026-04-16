@@ -1,5 +1,5 @@
 #pragma once
 
-constexpr char VERSION[] = "0.3.0";
+constexpr char VERSION[] = "1.0.0";
  
 constexpr int PORT = 1710;

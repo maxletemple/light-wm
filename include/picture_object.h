@@ -10,5 +10,5 @@ public:
                   const uint8_t* pixels, size_t len);
     bool needRefresh() override;
     bool isDirty() const override { return dirty_; }
-    std::vector<uint8_t> getPixels() override;
+    void render(const RenderContext& ctx, int abs_x, int abs_y) override;
 };

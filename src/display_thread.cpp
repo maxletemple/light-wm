@@ -3,7 +3,6 @@
 #include <iostream>
 #include <cstring>
 #include <cerrno>
-#include <vector>
 #include <thread>
 #include <chrono>
 
@@ -76,15 +75,22 @@ void DisplayThread::run()
             std::cerr << "[Display] FBIOPUTCMAP: " << strerror(errno) << "\n";
     }
 
-    // 6. Back buffer (reused each frame)
-    std::vector<uint8_t> back(fb_size_, 0);
-
-    // LUT for 32bpp: grayscale → 0xFFRRGGBB
+    // 6. LUT for 32bpp: grayscale → 0xFFRRGGBB
     uint32_t lut[256];
     for (int i = 0; i < 256; ++i)
         lut[i] = 0xFF000000u | ((uint32_t)i << 16) | ((uint32_t)i << 8) | (uint32_t)i;
 
-    const int Bpp = static_cast<int>(bpp / 8);
+    const int Bpp     = static_cast<int>(bpp / 8);
+    const int scr_w   = static_cast<int>(vinfo_.xres);
+    const int scr_h   = static_cast<int>(vinfo_.yres);
+
+    RenderContext ctx;
+    ctx.buf    = fb_ptr_;
+    ctx.stride = finfo_.line_length;
+    ctx.bpp    = bpp;
+    ctx.lut    = (bpp == 32) ? lut : nullptr;
+    ctx.scr_w  = scr_w;
+    ctx.scr_h  = scr_h;
 
     while (true) {
         // 7. Wait for vsync; fall back to ~20ms sleep if unsupported
@@ -106,8 +112,6 @@ void DisplayThread::run()
         auto frame_start = std::chrono::steady_clock::now();
 
         // 10. Bounding box of all visible windows
-        const int scr_w = static_cast<int>(vinfo_.xres);
-        const int scr_h = static_cast<int>(vinfo_.yres);
         int bb_x0 = scr_w, bb_y0 = scr_h, bb_x1 = 0, bb_y1 = 0;
         for (Window* w : windows) {
             bb_x0 = std::min(bb_x0, std::max(0, w->getPosX()));
@@ -117,51 +121,20 @@ void DisplayThread::run()
         }
         if (bb_x0 >= bb_x1 || bb_y0 >= bb_y1) continue;
 
-        // 11. Clear bounding box in back buffer
+        // 11. Clear bounding box (fond noir entre les fenêtres)
         for (int y = bb_y0; y < bb_y1; ++y)
-            std::memset(back.data() + y * finfo_.line_length + bb_x0 * Bpp,
+            std::memset(fb_ptr_ + y * finfo_.line_length + bb_x0 * Bpp,
                         0, static_cast<size_t>(bb_x1 - bb_x0) * Bpp);
 
-        // 12. Composite windows into back buffer
-        auto t_composite = std::chrono::steady_clock::now();
-        for (Window* w : windows) {
-            const auto& pixels = w->getPixels();
-            if (pixels.empty()) continue;
-            const int px = w->getPosX(), py = w->getPosY();
-            const int pw = w->getWidth(), ph = w->getHeight();
-
-            // Pre-compute clip rectangle
-            const int cx0 = std::max(0, -px), cx1 = std::min(pw, scr_w - px);
-            const int cy0 = std::max(0, -py), cy1 = std::min(ph, scr_h - py);
-            if (cx0 >= cx1 || cy0 >= cy1) continue;
-
-            for (int wy = cy0; wy < cy1; ++wy) {
-                const int sy = py + wy;
-                const uint8_t* src = pixels.data() + wy * pw + cx0;
-                if (bpp == 8) {
-                    std::memcpy(back.data() + sy * finfo_.line_length + (px + cx0),
-                                src, cx1 - cx0);
-                } else { // 32bpp
-                    uint32_t* dst = reinterpret_cast<uint32_t*>(
-                        back.data() + sy * finfo_.line_length) + (px + cx0);
-                    for (int i = 0, n = cx1 - cx0; i < n; ++i)
-                        dst[i] = lut[src[i]];
-                }
-            }
-        }
-
-        // 13. Copy bounding box to framebuffer
-        auto t_copy = std::chrono::steady_clock::now();
-        for (int y = bb_y0; y < bb_y1; ++y)
-            std::memcpy(fb_ptr_ + y * finfo_.line_length + bb_x0 * Bpp,
-                        back.data() + y * finfo_.line_length + bb_x0 * Bpp,
-                        static_cast<size_t>(bb_x1 - bb_x0) * Bpp);
+        // 12. Render each window directly into the framebuffer
+        auto t_render = std::chrono::steady_clock::now();
+        for (Window* w : windows)
+            w->render(ctx);
 
         auto t_end = std::chrono::steady_clock::now();
         auto ms = [](auto a, auto b){
             return std::chrono::duration<double,std::milli>(b-a).count(); };
-        std::cout << "[Display] composite=" << ms(t_composite, t_copy)
-                  << "ms copy=" << ms(t_copy, t_end)
+        std::cout << "[Display] render=" << ms(t_render, t_end)
                   << "ms total=" << ms(frame_start, t_end) << "ms\n";
     }
 }

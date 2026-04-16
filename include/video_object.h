@@ -22,11 +22,11 @@ public:
     ~VideoObject();
     bool needRefresh()     override { return initialized_; }
     bool isDirty()   const override { return initialized_; }
-    std::vector<uint8_t> getPixels() override;
+    void render(const RenderContext& ctx, int abs_x, int abs_y) override;
 
 private:
     bool initializeDecoder();
     void cleanupDecoder();
     void rewind();
-    std::vector<uint8_t> extractYPlane();
+    void renderYPlane(const RenderContext& ctx, int abs_x, int abs_y);
 };

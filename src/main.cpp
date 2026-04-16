@@ -37,6 +37,8 @@ int main() {
     struct sockaddr_in address;
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     if (server_fd < 0) {
         std::cerr << "Error during socket creation" << std::endl;
         return -1;

@@ -9,6 +9,7 @@
 #include "display_object.h"
 #include "text_object.h"
 #include "picture_object.h"
+#include "video_object.h"
 #include "stb_image.h"
 
 // Decode a JPEG or PNG buffer to 8-bit grayscale, scaled to dstW×dstH.
@@ -171,6 +172,21 @@ void ManagerThread::run()
                                                   decoded.data(), decoded.size());
                     window_list_.getWindow(cmd.winIndex)->setObject(cmd.objIndex, obj);
                     std::cout << "Object " << cmd.objIndex << " (picture) set on window "
+                              << cmd.winIndex << std::endl;
+                } else if (packet.header.data_type == DTYPE_VIDEO) {
+                    if (payloadLen < sizeof(VideoData)) {
+                        std::cerr << "CMD_SET_OBJECT: VideoData payload too small" << std::endl;
+                        break;
+                    }
+                    VideoData vd;
+                    std::memcpy(&vd, payload, sizeof(VideoData));
+                    const uint8_t* vidData = payload + sizeof(VideoData);
+                    const size_t   vidLen  = payloadLen - sizeof(VideoData);
+
+                    auto* obj = new VideoObject(cmd.x, cmd.y, cmd.width, cmd.height,
+                                               vidData, vidLen);
+                    window_list_.getWindow(cmd.winIndex)->setObject(cmd.objIndex, obj);
+                    std::cout << "Object " << cmd.objIndex << " (video) set on window "
                               << cmd.winIndex << std::endl;
                 } else {
                     std::cout << "CMD_SET_OBJECT: data_type=" << packet.header.data_type

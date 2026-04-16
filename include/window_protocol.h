@@ -14,3 +14,5 @@ constexpr int DTYPE_VIDEO   = 0x2;
 
 constexpr int PFMT_JPEG = 0x0;
 constexpr int PFMT_PNG  = 0x1;
+
+constexpr int VFMT_H264 = 0x0;

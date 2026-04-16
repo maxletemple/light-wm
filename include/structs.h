@@ -64,4 +64,9 @@ struct PictureData {
     // suivi des octets bruts de l'image encodée
 };
 
+struct VideoData {
+    uint8_t format;   // VFMT_H264=0
+    // suivi des octets bruts de la vidéo encodée
+};
+
 #pragma pack(pop)

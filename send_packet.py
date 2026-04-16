@@ -23,6 +23,8 @@ DTYPE_VIDEO   = 0x2
 PFMT_JPEG = 0x0
 PFMT_PNG  = 0x1
 
+VFMT_H264 = 0x0
+
 MENU = """
 --- Commandes disponibles ---
   0  PING
@@ -33,6 +35,7 @@ MENU = """
   5  SET_TEXT      (winIndex, objIndex, x, y, width, height, fontSize, texte)
   6  RM_OBJECT     (winIndex, objIndex)
   7  SET_PICTURE   (winIndex, objIndex, x, y, width, height, chemin)
+  8  SET_VIDEO     (winIndex, objIndex, x, y, width, height, chemin.h264)
   t  QUICK TEST    (crée fenêtre 500x500 + mire_ortf.jpeg)
   q  Quitter
 -----------------------------"""
@@ -76,6 +79,14 @@ def make_rm_object(winIndex, objIndex):
     data = struct.pack("<HH", winIndex, objIndex)
     return make_packet(CMD_RM_OBJECT, data)
 
+
+def make_set_video(winIdx, objIdx, x, y, width, height, path):
+    with open(path, "rb") as f:
+        video_bytes = f.read()
+    obj_set   = struct.pack("<HHHHHH", winIdx, objIdx, x, y, width, height)
+    video_hdr = struct.pack("<B", VFMT_H264)
+    data = obj_set + video_hdr + video_bytes
+    return make_packet(CMD_SET_OBJECT, data, data_type=DTYPE_VIDEO)
 
 def make_set_picture(winIdx, objIdx, x, y, width, height, path):
     with open(path, "rb") as f:
@@ -172,6 +183,20 @@ def interactive_loop(sock):
             try:
                 sock.sendall(make_set_picture(winIdx, objIdx, x, y, width, height, path))
                 print(f"→ SET_PICTURE envoyé (win={winIdx} obj={objIdx} \"{path}\")")
+            except FileNotFoundError:
+                print(f"  Fichier introuvable : {path}")
+
+        elif choix == "8":
+            winIdx  = prompt_int("winIndex")
+            objIdx  = prompt_int("objIndex", 0)
+            x       = prompt_int("x", 0)
+            y       = prompt_int("y", 0)
+            width   = prompt_int("width", 320)
+            height  = prompt_int("height", 240)
+            path    = input("  chemin du fichier H.264 brut (.h264): ").strip()
+            try:
+                sock.sendall(make_set_video(winIdx, objIdx, x, y, width, height, path))
+                print(f"→ SET_VIDEO envoyé (win={winIdx} obj={objIdx} \"{path}\")")
             except FileNotFoundError:
                 print(f"  Fichier introuvable : {path}")
 

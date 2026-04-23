@@ -1,0 +1,26 @@
+{
+  "name": "Cross-compile ARMv6",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "workspaceFolder": "/workspace",
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,readonly",
+    "source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind,readonly"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cpptools-extension-pack",
+        "xaver.clang-format"
+      ],
+      "settings": {
+        "C_Cpp.default.compilerPath": "/opt/cross-pi-gcc/bin/arm-linux-gnueabihf-g++",
+        "C_Cpp.default.cppStandard": "c++20",
+        "C_Cpp.default.intelliSenseMode": "gcc-arm"
+      }
+    }
+  }
+}

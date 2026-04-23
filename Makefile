@@ -1,8 +1,8 @@
 PI_HOST := mletemple@minitel
 PI_DIR := ~
 
-CXX      = armv6-unknown-linux-gnueabihf-g++
-CXXFLAGS = --sysroot=$(SYSROOT) -I$(SYSROOT)/usr/include -std=c++20 -Wall -Wextra -pthread -I include -march=armv6 -mcpu=arm1176jzf-s -mfpu=vfp -mfloat-abi=hard  -marm -g
+CXX      = arm-linux-gnueabihf-g++
+CXXFLAGS = --sysroot=$(SYSROOT) -I$(SYSROOT)/usr/include -std=c++2a -Wall -Wextra -pthread -I include -march=armv6 -mcpu=arm1176jzf-s -mfpu=vfp -mfloat-abi=hard -marm -g
 LDFLAGS  = --sysroot=$(SYSROOT) -Wl,--as-needed -Wl,--allow-shlib-undefined -pthread -lavcodec -lavformat -lavutil -lswscale
 
 TARGET  = wm-server

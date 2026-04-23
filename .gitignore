@@ -1,5 +1,4 @@
 .vscode/*
-.devcontainer/*
 obj/*
 wm-server
 CLAUDE.md
